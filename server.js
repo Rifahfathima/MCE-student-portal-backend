@@ -18,46 +18,43 @@ const { errorHandler } = require("./middleware/errorHandler");
 
 const app = express();
 
-// Security middleware
+// ------------------ Security & Performance Middleware ------------------ //
 app.use(helmet());
 app.use(compression());
 
-// Rate limiting
+// ------------------ Rate Limiting ------------------ //
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
-  message: "Too many requests from this IP, please try again later.",
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+  message: { success: false, message: "Too many requests from this IP, please try again later." },
 });
 app.use("/api/", limiter);
 
-// ✅ Correct CORS configuration
+// ------------------ CORS ------------------ //
 app.use(
   cors({
     origin: [
       "http://localhost:8080",
       "http://localhost:5173",
-      "https://mce-student-portal-frontend-pink.vercel.app/", // ✅ removed trailing slash
-      "https://mce-student-portal-frontend-pink.vercel.app/", // ✅ also add main vercel domain
+      "https://mce-student-portal-frontend-pink.vercel.app",
     ],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // ✅ allow OPTIONS
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );
-
-// ✅ Handle preflight OPTIONS requests
 app.options("*", cors());
 
-// Body parsing middleware
+// ------------------ Body Parsing ------------------ //
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Logging middleware
+// ------------------ Logging ------------------ //
 if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
 
-// Health check endpoint
+// ------------------ Health Check ------------------ //
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     success: true,
@@ -67,13 +64,18 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// API Routes
+// ------------------ API Routes ------------------ //
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/achievements", achievementRoutes);
 
-// 404 handler
+// ------------------ Root Route (optional) ------------------ //
+app.get("/", (req, res) => {
+  res.status(200).json({ success: true, message: "Welcome to MCE Student Portal API!" });
+});
+
+// ------------------ 404 Handler ------------------ //
 app.use("*", (req, res) => {
   res.status(404).json({
     success: false,
@@ -81,10 +83,10 @@ app.use("*", (req, res) => {
   });
 });
 
-// Error handling middleware (must be last)
+// ------------------ Global Error Handler ------------------ //
 app.use(errorHandler);
 
-// Database connection
+// ------------------ Database Connection ------------------ //
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI);
@@ -95,7 +97,7 @@ const connectDB = async () => {
   }
 };
 
-// Start server
+// ------------------ Start Server ------------------ //
 const PORT = process.env.PORT || 5003;
 
 const startServer = async () => {
@@ -108,18 +110,26 @@ const startServer = async () => {
   });
 };
 
-// Handle unhandled promise rejections
-process.on("unhandledRejection", (err, promise) => {
-  console.log("Unhandled Promise Rejection:", err.message);
+// ------------------ Process Event Handlers ------------------ //
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled Promise Rejection:", err.message);
   process.exit(1);
 });
 
-// Handle uncaught exceptions
 process.on("uncaughtException", (err) => {
-  console.log("Uncaught Exception:", err.message);
+  console.error("Uncaught Exception:", err.message);
   process.exit(1);
 });
 
 startServer();
 
 module.exports = app;
+// ------------------ 404 Handler ------------------ //
+app.use("*", (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+    method: req.method,
+    url: req.originalUrl,
+  });
+});
